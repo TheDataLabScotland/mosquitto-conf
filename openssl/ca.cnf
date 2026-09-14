@@ -1,0 +1,107 @@
+#
+# Root CA policy.
+#
+# Used for two things:
+#   1. `openssl req  -config openssl/ca.cnf` — create the self-signed CA cert
+#   2. `openssl ca   -config openssl/ca.cnf` — sign server and client CSRs
+#
+# The [ ca ] / [ CA_default ] sections drive `openssl ca` rather than
+# `openssl x509 -req`, producing ca/index.txt (an issued-cert database) and
+# making CRLs possible. `x509 -req` cannot revoke anything.
+#
+
+[ default ]
+dir = .
+
+# ---------------------------------------------------------------------------
+# `openssl ca` configuration
+# ---------------------------------------------------------------------------
+
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+dir               = $ENV::CA_DIR
+database          = $dir/index.txt
+new_certs_dir     = $dir
+certificate       = $dir/ca.crt
+private_key       = $dir/ca.key
+
+default_md        = sha256
+default_days      = 365
+default_crl_days  = 30          # required by `openssl ca -gencrl`
+preserve          = no
+email_in_dn       = no
+crlnumber         = $dir/crlnumber
+
+# Sequential serials (1000, 1001, ...) make index.txt easy to cross-reference
+# with a CRL by hand.
+#
+# Do NOT add `rand_serial = no` here. OpenSSL treats the mere PRESENCE of that
+# key as true regardless of its value, so writing "no" switches ON random
+# 20-byte serials — the opposite of what it reads like (OpenSSL 3.5.5).
+# Omitting the key entirely yields sequential serials.
+serial            = $dir/serial
+
+unique_subject    = no          # allow reissuing the same CN (cert renewal)
+
+policy            = policy_loose
+copy_extensions   = none        # SECURITY: never copy extensions from a CSR
+
+[ policy_loose ]
+# Only CN is required. A private CA on a LAN gains nothing from O/OU/C fields.
+commonName             = supplied
+countryName            = optional
+stateOrProvinceName    = optional
+localityName           = optional
+organizationName       = optional
+organizationalUnitName = optional
+emailAddress           = optional
+
+# ---------------------------------------------------------------------------
+# `openssl req` configuration — creating the CA's own self-signed cert
+# ---------------------------------------------------------------------------
+
+[ req ]
+default_bits       = 2048
+default_md         = sha256
+prompt             = no
+distinguished_name = ca_dn
+x509_extensions    = ca_ext
+encrypt_key        = no
+
+[ ca_dn ]
+CN = $ENV::CA_CN
+
+[ ca_ext ]
+# CA:TRUE is what allows this cert to sign others. Leaf certs must never have it.
+basicConstraints       = critical, CA:TRUE
+keyUsage               = critical, keyCertSign, cRLSign
+subjectKeyIdentifier   = hash
+
+# ---------------------------------------------------------------------------
+# Signing extensions, selected via `openssl ca -extensions <name>`
+# ---------------------------------------------------------------------------
+
+[ server_ext ]
+# SAN comes from the environment so the Makefile owns it in exactly one place.
+# For an IP-dialled broker this MUST contain IP:<addr> — a DNS: entry will not
+# satisfy an IP connection.
+basicConstraints       = critical, CA:FALSE
+keyUsage               = critical, digitalSignature, keyEncipherment
+extendedKeyUsage       = serverAuth
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+subjectAltName         = $ENV::SAN
+
+[ client_ext ]
+# No SAN: clients are not hostname-checked.
+# clientAuth is mandatory — mbedTLS on the gateway enforces EKU.
+basicConstraints       = critical, CA:FALSE
+keyUsage               = critical, digitalSignature
+extendedKeyUsage       = clientAuth
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+
+[ crl_ext ]
+authorityKeyIdentifier = keyid:always

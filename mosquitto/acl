@@ -1,0 +1,115 @@
+# ---------------------------------------------------------------------------
+# Mosquitto ACL
+#
+# Deploy to /etc/mosquitto/acl  (mode 0644, root:root is fine — no secrets)
+#
+# On :8884 the username is the client certificate CN (use_identity_as_username).
+# So `make client CN=gw-01` and `user gw-01` below must agree exactly.
+#
+# Direction is from the CLIENT's point of view:
+#   write = client publishes    (gateway sends uplinks)
+#   read  = client subscribes   (gateway receives downlinks)
+# Getting these backwards is a common and confusing mistake.
+#
+# ---------------------------------------------------------------------------
+# UG65 topic structure
+# ---------------------------------------------------------------------------
+# The UG65 embedded Network Server does NOT hardcode topics. Under
+# Network Server > Application > <app> > MQTT you define one topic per
+# Data Type. Available data types (UG65 user guide, Table 3-2-2-5):
+#
+#   Uplink Data              gateway PUBLISHES device uplinks
+#   Downlink Data            gateway SUBSCRIBES for downlink commands
+#   Multicast Downlink Data  gateway SUBSCRIBES, multicast group
+#   Join Notification        gateway PUBLISHES join accepts
+#   ACK Notification         gateway PUBLISHES device ACKs
+#   Error Notification       gateway PUBLISHES errors
+#   Request data             gateway SUBSCRIBES for NS-API requests
+#   Response data            gateway PUBLISHES NS-API responses
+#
+# `$deveui` in a downlink topic is a wildcard the gateway replaces with the
+# real device EUI, letting you address one device — e.g.
+#   /milesight/downlink/$deveui
+# subscribes to a topic the gateway treats as a per-device pattern. In ACL
+# terms that is a single-level MQTT wildcard, so use `+`.
+#
+# The convention below matches Milesight's own Beaver IoT integration:
+#   <prefix>/<gatewayEUI>/{uplink,downlink,request,response}
+# (Milesight-IoT/beaver-iot-integrations, MsGwMqttUtil.java)
+#
+# Substitute your real gateway EUI for 24e124fffef00000 — find it under
+# Status > Overview, or on the device label. Then configure the matching
+# topics in the gateway UI. Topics are yours to choose; they only have to
+# agree on both sides.
+# ---------------------------------------------------------------------------
+
+# Deny everything not explicitly granted below.
+# (No global `topic` lines = default deny for authenticated users.)
+
+
+# --- Gateway gw-01 ---------------------------------------------------------
+# CN=gw-01, connects on :8884 with a client certificate.
+user gw-01
+
+# Gateway PUBLISHES: uplinks, join/ack/error notifications, NS-API responses.
+topic write milesight-gateway/24e124fffef00000/uplink
+topic write milesight-gateway/24e124fffef00000/join
+topic write milesight-gateway/24e124fffef00000/ack
+topic write milesight-gateway/24e124fffef00000/error
+topic write milesight-gateway/24e124fffef00000/response
+
+# Gateway SUBSCRIBES: downlink commands. The trailing `+` covers the
+# per-device `$deveui` level. Use `/#` instead if you nest deeper.
+topic read milesight-gateway/24e124fffef00000/downlink
+topic read milesight-gateway/24e124fffef00000/downlink/+
+topic read milesight-gateway/24e124fffef00000/multicast
+
+# Gateway SUBSCRIBES: NS-API requests (device provisioning, config).
+# Drop this line if you never drive the NS-API over MQTT.
+topic read milesight-gateway/24e124fffef00000/request
+
+# Last will — only if you enable Will on the gateway. Topic must match the
+# gateway's configured Will Topic exactly.
+topic write milesight-gateway/24e124fffef00000/status
+
+
+# --- Application / backend user -------------------------------------------
+# Mirror image of the gateway: reads uplinks, writes downlinks.
+# Connects on :8883 with a password (see mosquitto/passwd).
+user backend
+
+topic read  milesight-gateway/+/uplink
+topic read  milesight-gateway/+/join
+topic read  milesight-gateway/+/ack
+topic read  milesight-gateway/+/error
+topic read  milesight-gateway/+/response
+topic read  milesight-gateway/+/status
+
+topic write milesight-gateway/+/downlink
+topic write milesight-gateway/+/downlink/+
+topic write milesight-gateway/+/multicast
+topic write milesight-gateway/+/request
+
+
+# --- Read-only observer ----------------------------------------------------
+# For dashboards. Cannot send downlinks, so it cannot actuate hardware.
+user observer
+topic read milesight-gateway/#
+
+
+# --- Debug user (DISABLED) -------------------------------------------------
+# Full read/write on every topic, downlinks included, so a cert with CN=debug
+# can actuate hardware. Commented out for that reason.
+#
+# To enable temporarily:
+#   1. uncomment the two lines below
+#   2. make client CN=debug
+#   3. systemctl reload mosquitto
+#   4. mosquitto_sub -h <broker> -p 8884 --cafile ca.crt \
+#        --cert client.crt --key client.key -t '#' -v
+#
+# Then REVERT: re-comment, `make revoke CN=debug`, `make crl`, copy the CRL
+# across, reload. Revoking matters — re-commenting the ACL alone leaves a
+# valid certificate in circulation.
+#user debug
+#topic readwrite #

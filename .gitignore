@@ -1,0 +1,29 @@
+# Secrets — never commit private keys
+ca/ca.key
+private/
+*.key
+*.csr
+
+# Generated PKI. This repo ships as a TEMPLATE: you run `make init` and your
+# CA stays local. Tracking ca/index.txt would publish an inventory of your
+# gateways and their renewal dates.
+#
+# To keep your own certs under version control in a fork, delete the four
+# lines below. Never delete the secrets block above.
+ca/
+certs/
+
+# CA state (regenerable, noisy in diffs)
+ca/*.old
+ca/*.attr
+ca/serial.*
+ca/crlnumber.*
+
+# Mosquitto password file — hashed, but still a credential
+mosquitto/passwd
+
+# Local scratch
+dist/
+
+# Duplicate cert copies written by openssl ca new_certs_dir
+ca/*.pem

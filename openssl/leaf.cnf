@@ -1,0 +1,23 @@
+#
+# Leaf CSR template — used for BOTH server and client certificate requests.
+#
+# A CSR only carries a public key and a claimed name. It intentionally carries
+# no extensions here: SAN and EKU are applied by the CA at signing time from
+# openssl/ca.cnf ([ server_ext ] / [ client_ext ]).
+#
+# This is deliberate. ca.cnf sets `copy_extensions = none`, so anything a CSR
+# asks for is ignored. Extensions are the CA's decision, not the requester's —
+# otherwise a client could request a CA:TRUE cert and mint its own certs.
+#
+
+[ req ]
+default_bits       = 2048
+default_md         = sha256
+prompt             = no
+distinguished_name = leaf_dn
+encrypt_key        = no
+
+[ leaf_dn ]
+# For a server cert: the address/name the gateway dials (SAN still governs).
+# For a client cert: the device ID, which becomes the MQTT username.
+CN = $ENV::LEAF_CN
