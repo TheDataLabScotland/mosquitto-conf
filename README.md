@@ -66,9 +66,12 @@ make client  CN=gw-01                        # one per gateway
 make bundle  CN=gw-01                        # stage 3 files in dist/gw-01/
 make verify  BROKER_IP=<your-broker-ip>      # chain, IP SAN, EKUs, revocation
 
-# then edit mosquitto/acl to replace the placeholder gateway EUI
-make deploy-help BROKER_IP=<your-broker-ip>
+# then edit mosquitto/acl to replace the placeholder gateway EUI after you're happy with the topics
 ```
+
+This gives detailed config advice about how to set up the mosquitto server: 
+
+`make deploy-help BROKER_IP=<your-broker-ip>`
 
 `make init` creates `ca/`, `certs/`, and `private/` if absent.
 
