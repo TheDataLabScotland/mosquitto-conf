@@ -200,6 +200,9 @@ absolute time.
 
 Set NTP on the gateway and confirm it took effect.
 
+<img width="819" height="408" alt="image" src="https://github.com/user-attachments/assets/601f1a7c-3b25-47c4-9d03-7e948fa4b876" />
+
+
 ### Missing IP SAN
 
 The gateway dials a raw IP, so `certs/server.crt` must carry that IP literally,
