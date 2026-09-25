@@ -243,8 +243,7 @@ mosquitto_sub -h <broker> -p 8884 --cafile ca/ca.crt \
   --cert certs/client-debug.crt --key private/client-debug.key -t '#' -v
 ```
 
-Reverting takes two steps. Re-commenting the ACL alone leaves a valid
-all-access certificate in circulation:
+Reverting:
 
 ```bash
 make revoke CN=debug && make crl     # then copy ca.crl across and reload
@@ -254,17 +253,13 @@ Revocation only takes effect if `crlfile` is enabled.
 
 ### File permissions on the broker
 
-`server.key` must be mode 0600 owned `mosquitto:mosquitto`, or Mosquitto exits
-at startup with no useful log line. Check this first when the broker will not
-start.
-
-Mosquitto 2.x also warns on a world-readable `acl_file`:
-
-```
-Warning: File /etc/mosquitto/acl has world readable permissions.
-```
+* `server.key` must be mode 0600 owned `mosquitto:mosquitto`,
 
 `make deploy-help` prints the correct `chown`/`chmod` for both.
+
+* `mosquitto` in Docker expects both `certs` and `data` to be UID 1883
+
+ `chown -R 1883 certs data`
 
 ### `crlfile` pointing at a missing file
 
